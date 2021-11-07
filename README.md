@@ -1,7 +1,6 @@
 # BIP39
 
-[![Build Status](https://travis-ci.org/bitcoinjs/bip39.png?branch=master)](https://travis-ci.org/bitcoinjs/bip39)
-[![NPM](https://img.shields.io/npm/v/bip39.svg)](https://www.npmjs.org/package/bip39)
+[![NPM](https://img.shields.io/npm/v/bip39-web-crypto.svg)](https://www.npmjs.org/package/bip39-web-crypto)
 
 [![js-standard-style](https://cdn.rawgit.com/feross/standard/master/badge.svg)](https://github.com/feross/standard)
 
@@ -90,7 +89,7 @@ undefined
 
 ## Installation
 ``` bash
-npm install bip39
+npm i bip39-web-crypto
 ```
 
 ## Examples
