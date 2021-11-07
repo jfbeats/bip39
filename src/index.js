@@ -1,13 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const _wordlists_1 = require("./_wordlists");
+let crypto;
+if (typeof window === 'undefined') {
+    crypto = require("crypto").webcrypto;
+}
+else {
+    crypto = window.crypto;
+}
 let DEFAULT_WORDLIST = _wordlists_1._default;
 const INVALID_MNEMONIC = 'Invalid mnemonic';
 const INVALID_ENTROPY = 'Invalid entropy';
 const INVALID_CHECKSUM = 'Invalid mnemonic checksum';
 const WORDLIST_REQUIRED = 'A wordlist is required but a default could not be found. Please pass a 2048 word array explicitly.';
 function randomBytes(len) {
-    return Buffer.from(window.crypto.getRandomValues(new Uint8Array(len)));
+    return Buffer.from(crypto.getRandomValues(new Uint8Array(len)));
 }
 function normalize(str) {
     return (str || '').normalize('NFKD');
@@ -27,7 +34,7 @@ function bytesToBinary(bytes) {
 async function deriveChecksumBits(entropyBuffer) {
     const ENT = entropyBuffer.length * 8;
     const CS = ENT / 32;
-    const hash = await window.crypto.subtle.digest('SHA-256', entropyBuffer);
+    const hash = await crypto.subtle.digest('SHA-256', entropyBuffer);
     return bytesToBinary(Array.from(new Uint8Array(hash))).slice(0, CS);
 }
 function salt(password) {
@@ -36,9 +43,8 @@ function salt(password) {
 async function mnemonicToSeed(mnemonic, password) {
     const mnemonicBuffer = Buffer.from(normalize(mnemonic), 'utf8');
     const saltBuffer = Buffer.from(salt(normalize(password)), 'utf8');
-    // return pbkdf2Sync(mnemonicBuffer, saltBuffer, 2048, 64, 'sha512');
-    const mnemonicPBKDF2 = await window.crypto.subtle.importKey('raw', mnemonicBuffer, 'PBKDF2', false, ['deriveBits']);
-    const result = await window.crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-512', salt: saltBuffer, iterations: 2048 }, mnemonicPBKDF2, 64);
+    const mnemonicPBKDF2 = await crypto.subtle.importKey('raw', mnemonicBuffer, 'PBKDF2', false, ['deriveBits']);
+    const result = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-512', salt: saltBuffer, iterations: 2048 }, mnemonicPBKDF2, 512);
     return Buffer.from(result);
 }
 exports.mnemonicToSeed = mnemonicToSeed;
@@ -115,7 +121,7 @@ async function entropyToMnemonic(entropy, wordlist) {
         : words.join(' ');
 }
 exports.entropyToMnemonic = entropyToMnemonic;
-function generateMnemonic(strength, rng, wordlist) {
+async function generateMnemonic(strength, rng, wordlist) {
     strength = strength || 128;
     if (strength % 32 !== 0) {
         throw new TypeError(INVALID_ENTROPY);

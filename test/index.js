@@ -15,18 +15,25 @@ function testVector (description, wordlist, password, v, i) {
   var vseedHex = v[2]
 
   test('for ' + description + '(' + i + '), ' + ventropy, function (t) {
-    t.plan(6)
+    t.plan(5)
 
-    t.equal(bip39.mnemonicToEntropy(vmnemonic, wordlist), ventropy, 'mnemonicToEntropy returns ' + ventropy.slice(0, 40) + '...')
-    t.equal(bip39.mnemonicToSeedSync(vmnemonic, password).toString('hex'), vseedHex, 'mnemonicToSeedSync returns ' + vseedHex.slice(0, 40) + '...')
+    bip39.mnemonicToEntropy(vmnemonic, wordlist).then(function (result) {
+      t.equal(result, ventropy, 'mnemonicToEntropy returns ' + ventropy.slice(0, 40) + '...')
+    })
     bip39.mnemonicToSeed(vmnemonic, password).then(function (asyncSeed) {
       t.equal(asyncSeed.toString('hex'), vseedHex, 'mnemonicToSeed returns ' + vseedHex.slice(0, 40) + '...')
     })
-    t.equal(bip39.entropyToMnemonic(ventropy, wordlist), vmnemonic, 'entropyToMnemonic returns ' + vmnemonic.slice(0, 40) + '...')
+    bip39.entropyToMnemonic(ventropy, wordlist).then(function (result) {
+      t.equal(result, vmnemonic, 'entropyToMnemonic returns ' + vmnemonic.slice(0, 40) + '...')
+    })
 
     function rng () { return Buffer.from(ventropy, 'hex') }
-    t.equal(bip39.generateMnemonic(undefined, rng, wordlist), vmnemonic, 'generateMnemonic returns RNG entropy unmodified')
-    t.equal(bip39.validateMnemonic(vmnemonic, wordlist), true, 'validateMnemonic returns true')
+    bip39.generateMnemonic(undefined, rng, wordlist).then(function (result) {
+      t.equal(result, vmnemonic, 'generateMnemonic returns RNG entropy unmodified')
+    })
+    bip39.validateMnemonic(vmnemonic, wordlist).then(function (result) {
+      t.equal(result, true, 'validateMnemonic returns true')
+    })
   })
 }
 
@@ -51,13 +58,15 @@ test('setDefaultWordlist changes default wordlist', function (t) {
   const italian = bip39.getDefaultWordlist()
   t.equal(italian, 'italian')
 
-  const phraseItalian = bip39.entropyToMnemonic('00000000000000000000000000000000')
-  t.equal(phraseItalian.slice(0, 5), 'abaco')
+  bip39.entropyToMnemonic('00000000000000000000000000000000').then(function (phraseItalian) {
+    t.equal(phraseItalian.slice(0, 5), 'abaco')
+  })
 
   bip39.setDefaultWordlist('english')
 
-  const phraseEnglish = bip39.entropyToMnemonic('00000000000000000000000000000000')
-  t.equal(phraseEnglish.slice(0, 7), 'abandon')
+  bip39.entropyToMnemonic('00000000000000000000000000000000').then(function (phraseEnglish) {
+    t.equal(phraseEnglish.slice(0, 7), 'abandon')
+  })
 })
 
 test('setDefaultWordlist throws on unknown wordlist', function (t) {
@@ -74,20 +83,32 @@ test('setDefaultWordlist throws on unknown wordlist', function (t) {
   t.assert(false)
 })
 
-test('invalid entropy', function (t) {
+test('invalid entropy', async function (t) {
   t.plan(3)
 
-  t.throws(function () {
-    bip39.entropyToMnemonic(Buffer.from('', 'hex'))
-  }, /^TypeError: Invalid entropy$/, 'throws for empty entropy')
+  try {
+    await bip39.entropyToMnemonic(Buffer.from('', 'hex'))
+    t.fail('throws for empty entropy')
+  } catch (e) {
+    if (e == 'TypeError: Invalid entropy') { t.pass('throws for empty entropy') }
+    else { t.fail('throws for empty entropy') }
+  }
 
-  t.throws(function () {
-    bip39.entropyToMnemonic(Buffer.from('000000', 'hex'))
-  }, /^TypeError: Invalid entropy$/, 'throws for entropy that\'s not a multitude of 4 bytes')
+  try {
+    await bip39.entropyToMnemonic(Buffer.from('000000', 'hex'))
+    t.fail('throws for entropy that\'s not a multitude of 4 bytes')
+  } catch (e) {
+    if (e == 'TypeError: Invalid entropy') { t.pass('throws for entropy that\'s not a multitude of 4 bytes') }
+    else { t.fail('throws for entropy that\'s not a multitude of 4 bytes') }
+  }
 
-  t.throws(function () {
-    bip39.entropyToMnemonic(Buffer.from(new Array(1028 + 1).join('00'), 'hex'))
-  }, /^TypeError: Invalid entropy$/, 'throws for entropy that is larger than 1024')
+  try {
+    await bip39.entropyToMnemonic(Buffer.from(new Array(1028 + 1).join('00'), 'hex'))
+    t.fail('throws for entropy that is larger than 1024')
+  } catch (e) {
+    if (e == 'TypeError: Invalid entropy') { t.pass('throws for entropy that is larger than 1024') }
+    else { t.fail('throws for entropy that is larger than 1024') }
+  }
 })
 
 test('UTF8 passwords', function (t) {
@@ -100,16 +121,22 @@ test('UTF8 passwords', function (t) {
     var password = '㍍ガバヴァぱばぐゞちぢ十人十色'
     var normalizedPassword = 'メートルガバヴァぱばぐゞちぢ十人十色'
 
-    t.equal(bip39.mnemonicToSeedSync(vmnemonic, password).toString('hex'), vseedHex, 'mnemonicToSeedSync normalizes passwords')
-    t.equal(bip39.mnemonicToSeedSync(vmnemonic, normalizedPassword).toString('hex'), vseedHex, 'mnemonicToSeedSync leaves normalizes passwords as-is')
+    bip39.mnemonicToSeed(vmnemonic, password).then(function (asyncSeed) {
+      t.equal(asyncSeed.toString('hex'), vseedHex, 'mnemonicToSeedSync normalizes passwords')
+    })
+    bip39.mnemonicToSeed(vmnemonic, normalizedPassword).then(function (asyncSeed) {
+      t.equal(asyncSeed.toString('hex'), vseedHex, 'mnemonicToSeedSync leaves normalizes passwords as-is')
+    })
   })
 })
 
 test('generateMnemonic can vary entropy length', function (t) {
-  var words = bip39.generateMnemonic(160).split(' ')
+  bip39.generateMnemonic(160).then(function (words) {
+    words = words.split(' ')
+    t.plan(1)
+    t.equal(words.length, 15, 'can vary generated entropy bit length')
+  })
 
-  t.plan(1)
-  t.equal(words.length, 15, 'can vary generated entropy bit length')
 })
 
 test('generateMnemonic requests the exact amount of data from an RNG', function (t) {
@@ -124,11 +151,21 @@ test('generateMnemonic requests the exact amount of data from an RNG', function 
 test('validateMnemonic', function (t) {
   t.plan(5)
 
-  t.equal(bip39.validateMnemonic('sleep kitten'), false, 'fails for a mnemonic that is too short')
-  t.equal(bip39.validateMnemonic('sleep kitten sleep kitten sleep kitten'), false, 'fails for a mnemonic that is too short')
-  t.equal(bip39.validateMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about end grace oxygen maze bright face loan ticket trial leg cruel lizard bread worry reject journey perfect chef section caught neither install industry'), false, 'fails for a mnemonic that is too long')
-  t.equal(bip39.validateMnemonic('turtle front uncle idea crush write shrug there lottery flower risky shell'), false, 'fails if mnemonic words are not in the word list')
-  t.equal(bip39.validateMnemonic('sleep kitten sleep kitten sleep kitten sleep kitten sleep kitten sleep kitten'), false, 'fails for invalid checksum')
+  bip39.validateMnemonic('sleep kitten').then(function (result) {
+    t.equal(result, false, 'fails for a mnemonic that is too short')
+  })
+  bip39.validateMnemonic('sleep kitten sleep kitten sleep kitten').then(function (result) {
+    t.equal(result, false, 'fails for a mnemonic that is too short')
+  })
+  bip39.validateMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about end grace oxygen maze bright face loan ticket trial leg cruel lizard bread worry reject journey perfect chef section caught neither install industry').then(function (result) {
+    t.equal(result, false, 'fails for a mnemonic that is too long')
+  })
+  bip39.validateMnemonic('turtle front uncle idea crush write shrug there lottery flower risky shell').then(function (result) {
+    t.equal(result, false, 'fails if mnemonic words are not in the word list')
+  })
+  bip39.validateMnemonic('sleep kitten sleep kitten sleep kitten sleep kitten sleep kitten sleep kitten').then(function (result) {
+    t.equal(result, false, 'fails for invalid checksum')
+  })
 })
 
 test('exposes standard wordlists', function (t) {

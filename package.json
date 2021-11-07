@@ -41,7 +41,6 @@
     "node-fetch": "^2.6.1",
     "nyc": "^15.0.0",
     "prettier": "1.16.4",
-    "proxyquire": "^1.7.10",
     "tape": "^4.13.2",
     "tslint": "^6.1.0",
     "typescript": "3.3.4000"

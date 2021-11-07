@@ -1,5 +1,12 @@
 import { _default as _DEFAULT_WORDLIST, wordlists } from './_wordlists';
 
+let crypto: Crypto
+if (typeof window === 'undefined') {
+  crypto = require("crypto").webcrypto
+} else {
+  crypto = window.crypto
+}
+
 let DEFAULT_WORDLIST: string[] | undefined = _DEFAULT_WORDLIST;
 
 const INVALID_MNEMONIC = 'Invalid mnemonic';
@@ -7,8 +14,8 @@ const INVALID_ENTROPY = 'Invalid entropy';
 const INVALID_CHECKSUM = 'Invalid mnemonic checksum';
 const WORDLIST_REQUIRED = 'A wordlist is required but a default could not be found. Please pass a 2048 word array explicitly.';
 
-function randomBytes (len: number) {
-  return Buffer.from(window.crypto.getRandomValues(new Uint8Array(len)))
+function randomBytes(len: number) {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(len)))
 }
 
 function normalize(str?: string): string {
@@ -33,7 +40,7 @@ function bytesToBinary(bytes: number[]): string {
 async function deriveChecksumBits(entropyBuffer: Buffer): Promise<string> {
   const ENT = entropyBuffer.length * 8;
   const CS = ENT / 32;
-  const hash = await window.crypto.subtle.digest('SHA-256', entropyBuffer)
+  const hash = await crypto.subtle.digest('SHA-256', entropyBuffer)
   return bytesToBinary(Array.from(new Uint8Array(hash))).slice(0, CS);
 }
 
@@ -44,8 +51,8 @@ function salt(password?: string): string {
 export async function mnemonicToSeed(mnemonic: string, password?: string): Promise<Buffer> {
   const mnemonicBuffer = Buffer.from(normalize(mnemonic), 'utf8');
   const saltBuffer = Buffer.from(salt(normalize(password)), 'utf8');
-  const mnemonicPBKDF2 = await window.crypto.subtle.importKey('raw', mnemonicBuffer, 'PBKDF2', false, ['deriveBits'])
-  const result = await window.crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-512', salt: saltBuffer, iterations: 2048 }, mnemonicPBKDF2, 64)
+  const mnemonicPBKDF2 = await crypto.subtle.importKey('raw', mnemonicBuffer, 'PBKDF2', false, ['deriveBits'])
+  const result = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-512', salt: saltBuffer, iterations: 2048 }, mnemonicPBKDF2, 512)
   return Buffer.from(result)
 }
 
@@ -137,7 +144,7 @@ export async function entropyToMnemonic(entropy: Buffer | string, wordlist?: str
     : words.join(' ');
 }
 
-export function generateMnemonic(strength?: number, rng?: (size: number) => Buffer, wordlist?: string[]): Promise<string> {
+export async function generateMnemonic(strength?: number, rng?: (size: number) => Buffer, wordlist?: string[]): Promise<string> {
   strength = strength || 128;
   if (strength % 32 !== 0) {
     throw new TypeError(INVALID_ENTROPY);
